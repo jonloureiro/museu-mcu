@@ -3,9 +3,7 @@
 
 
 void connectWiFi();
-void requestToken();
-bool connectServer();
-void responseToken();
+String request(const char* server, const char* end_point, String body);
 
 
 const char* ssid     = "YOURSSID";
@@ -22,7 +20,14 @@ void setup() {
   delay(1000);
 
   connectWiFi();
-  requestToken();
+
+  if (!client.connect(server, 443)) {
+    Serial.println("Connection failed");
+    return;
+  }
+  token = request(server, "/mcu/connect", "{\"name\": \"esp32\"}");
+  Serial.println("Authenticated MCU");
+  client.stop();
 }
 
 
@@ -38,7 +43,7 @@ void connectWiFi() {
 
   for (int i = 0; i < 10; i++) {
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("\nSucess\n");
+      Serial.println("\nConnected to WiFi");
       return;
     }
     Serial.print(".");
@@ -49,48 +54,27 @@ void connectWiFi() {
 }
 
 
-void requestToken() {
-  if (!connectServer()) {
-    Serial.println("Connection failed");
-    return;
-  }
-  Serial.println("Sending request...\n");
-  client.println("POST /mcu/connect HTTP/1.1");
-  client.println("Host: jonloureiro-museu.herokuapp.com");
+String request(const char* server, const char* end_point, String body) {
+  client.print  ("POST ");
+  client.print  (end_point);
+  client.println(" HTTP/1.1");
+  client.print  ("Host: ");
+  client.println(server);
   client.println("Content-Type: application/json");
   client.println("Accept: */*");
-  client.println("Content-Length: 19");
+  client.print  ("Content-Length: ");
+  client.println(body.length());
   client.println();
-  client.println("{\"name\": \"esp32\"}");
+  client.println(body);
   client.println();
-  responseToken();
-  client.stop();
-}
 
-
-bool connectServer() {
-  for (int i = 0; !client.connect(server, 443); i++) {
-    if (i == 4) return false;
-    delay(3000);
-  }
-  Serial.print("Connected to ");
-  Serial.println(server);
-  Serial.println();
-  return true;
-}
-
-
-void responseToken() {
   while (client.connected()) {
     String line = client.readStringUntil('\n');
     // Serial.println(line);
     if (line == "\r") break;
   }
 
-
   if (client.available())
-    token = client.readString();
-  
-  Serial.print("Response: ");
-  Serial.println(token);
+    return client.readString();
+  return String("");
 }
